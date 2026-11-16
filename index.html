@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="color-scheme" content="light">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="MR Konum">
+  <meta name="description" content="Telefonun GPS konumunu Quest gözlüğün okuyacağı QR kod olarak gösterir.">
+  <title>Konum Aktarımı · Kocaeli Altyapı MR</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --line: #e2e7ec;
+      --line-2: #cfd7df;
+      --text: #12263a;
+      --text-2: #4f6274;
+      --text-3: #7d8d9c;
+      --navy: #0f2a44;
+      --navy-2: #1d4268;
+      --brand: #5ea83a;
+      --ok: #2e7d32;
+      --ok-bg: #e8f4ea;
+      --mid: #9a6400;
+      --mid-bg: #fdf3e1;
+      --bad: #b3261e;
+      --bad-bg: #fbeae9;
+      --info-bg: #eef3f8;
+      --state: var(--text-3);
+      --state-bg: #eef1f4;
+      --radius: 12px;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+      --ease: cubic-bezier(.2, .7, .2, 1);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; }
+    body { font-family: var(--sans); color: var(--text); background: var(--bg); min-height: 100dvh; -webkit-font-smoothing: antialiased; }
+
+    /* App bar */
+    .bar { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 1px solid var(--line); padding-top: env(safe-area-inset-top); }
+    .bar::before { content: ""; display: block; height: 3px; background: linear-gradient(90deg, var(--navy) 0 70%, var(--brand) 70%); }
+    .bar-in { max-width: 520px; margin: 0 auto; display: flex; align-items: center; gap: 12px; padding: 12px 20px; }
+    .logo { width: 36px; height: 36px; flex: none; }
+    .titles { display: flex; flex-direction: column; min-width: 0; }
+    .titles b { font-size: 15.5px; font-weight: 650; letter-spacing: .1px; }
+    .titles span { font-size: 12.5px; color: var(--text-2); }
+    .net { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+    .net::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+    .net.off::before { background: var(--mid); }
+
+    main { max-width: 520px; margin: 0 auto; padding: 20px 20px max(20px, env(safe-area-inset-bottom)); min-height: calc(100dvh - 68px - env(safe-area-inset-top)); display: flex; flex-direction: column; }
+
+    .view { display: none; flex: 1; flex-direction: column; gap: 14px; }
+    .view.active { display: flex; }
+    .view.active > * { animation: enter .45s var(--ease) both; }
+    .view.active > *:nth-child(2) { animation-delay: .06s; }
+    .view.active > *:nth-child(3) { animation-delay: .12s; }
+    .view.active > *:nth-child(4) { animation-delay: .18s; }
+    .view.active > *:nth-child(5) { animation-delay: .24s; }
+    @keyframes enter { from { opacity: 0; transform: translateY(8px); } }
+
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+    h1 { font-size: 22px; line-height: 1.25; font-weight: 700; margin: 0 0 6px; letter-spacing: -.2px; }
+    h2 { font-size: 13px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); margin: 0 0 12px; }
+    p { margin: 0; }
+    .muted { color: var(--text-2); font-size: 15px; line-height: 1.55; }
+
+    /* Steps */
+    .steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+    .steps li { position: relative; display: flex; gap: 14px; padding: 0 0 18px; font-size: 15px; line-height: 1.45; counter-increment: s; }
+    .steps li:last-child { padding-bottom: 0; }
+    .steps li::before { content: counter(s); flex: none; width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--navy); color: var(--navy); font-size: 13.5px; font-weight: 700; display: grid; place-items: center; background: var(--card); position: relative; z-index: 1; }
+    .steps li:not(:last-child)::after { content: ""; position: absolute; left: 13.5px; top: 28px; bottom: 0; width: 1.5px; background: var(--line-2); }
+    .steps b { font-weight: 650; }
+
+    .notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius); background: var(--info-bg); border: 1px solid #dbe5ef; font-size: 13.5px; line-height: 1.5; color: var(--text-2); }
+    .notice svg { flex: none; width: 18px; height: 18px; color: var(--navy-2); margin-top: 1px; }
+
+    .spacer { flex: 1; min-height: 4px; }
+
+    .btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 18px; border-radius: 10px; border: 1px solid transparent; font: 600 16px/1 var(--sans); cursor: pointer; transition: background .2s, transform .12s var(--ease), box-shadow .2s; }
+    .btn:active { transform: scale(.985); }
+    .btn svg { width: 19px; height: 19px; flex: none; }
+    .btn-primary { background: var(--navy); color: #fff; box-shadow: 0 1px 2px rgba(15, 42, 68, .25); }
+    .btn-primary:hover { background: var(--navy-2); }
+    .btn-secondary { background: var(--card); color: var(--navy); border-color: var(--line-2); }
+    .btn-secondary:active { background: var(--bg); }
+    .btn-plain { background: none; color: var(--text-2); min-height: 44px; font-weight: 500; font-size: 15px; }
+    .install { display: none; }
+    .install.show { display: flex; }
+    .fine { font-size: 12.5px; color: var(--text-3); text-align: center; line-height: 1.5; }
+
+    /* Live: status rows */
+    .status-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .status-head h2 { margin: 0; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 650; color: var(--state); background: var(--state-bg); transition: color .3s, background .3s; }
+    .badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .searching .badge::before { animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: .25; } }
+    .kv { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); }
+    .kv div { padding: 12px 0 0; }
+    .kv div + div { padding-left: 14px; border-left: 1px solid var(--line); }
+    .kv dt { font-size: 12px; color: var(--text-3); margin-bottom: 3px; }
+    .kv dd { margin: 0; font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    #accV { color: var(--state); transition: color .3s; }
+
+    /* QR card */
+    .qr-card { padding: 16px; }
+    .qr-wrap { position: relative; width: min(100%, 50dvh, 360px); aspect-ratio: 1; margin: 0 auto; border-radius: 8px; background: #fff; overflow: hidden; cursor: zoom-in; }
+    .qr-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0; transform: scale(.97); transition: opacity .4s var(--ease), transform .4s var(--ease); }
+    .locked .qr-wrap canvas { opacity: 1; transform: none; }
+    .skeleton { position: absolute; inset: 9%; display: grid; grid-template-columns: repeat(9, 1fr); grid-auto-rows: 1fr; gap: 5px; transition: opacity .3s; }
+    .skeleton i { border-radius: 3px; background: linear-gradient(90deg, #edf0f3 0%, #e1e6eb 40%, #edf0f3 80%); background-size: 300% 100%; animation: shimmer 1.6s linear infinite; }
+    @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -200% 0; } }
+    .locked .skeleton { opacity: 0; }
+    .qr-caption { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; font-size: 13.5px; color: var(--text-2); }
+    .check { width: 18px; height: 18px; color: var(--ok); display: none; }
+    .check path { stroke-dasharray: 24; stroke-dashoffset: 24; }
+    .locked .check { display: block; }
+    .locked .check path { animation: draw .5s var(--ease) .15s forwards; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    .spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--navy); animation: spin .8s linear infinite; }
+    .locked .spinner { display: none; }
+    @keyframes spin { to { transform: rotate(1turn); } }
+
+    /* Accuracy gauge */
+    .gauge { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 14px 0 6px; }
+    .gauge i { height: 5px; border-radius: 3px; background: var(--line); transition: background .4s; }
+    [data-grade="good"] .gauge i:nth-child(1) { background: var(--ok); }
+    [data-grade="mid"] .gauge i:nth-child(-n+2) { background: var(--mid); }
+    [data-grade="bad"] .gauge i { background: var(--bad); }
+    .gauge-labels { display: grid; grid-template-columns: repeat(3, 1fr); font-size: 11.5px; color: var(--text-3); }
+    .gauge-labels span:nth-child(2) { text-align: center; }
+    .gauge-labels span:nth-child(3) { text-align: right; }
+    .coords { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--text-3); }
+    .coords code { font: 600 14px var(--mono); color: var(--text); }
+
+    .actions { display: grid; grid-template-columns: 1fr; gap: 6px; }
+    .actions.row { grid-template-columns: 1fr 1fr; gap: 10px; }
+    #v-live.active ~ footer { display: none; }
+
+    /* Error */
+    .err-head { display: flex; gap: 14px; align-items: flex-start; }
+    .err-icon { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--bad-bg); color: var(--bad); }
+    .err-icon svg { width: 22px; height: 22px; }
+    .err-steps { margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.6; color: var(--text); }
+    .err-steps li + li { margin-top: 4px; }
+    .os { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin: 0 0 8px; }
+
+    footer { margin-top: 18px; text-align: center; font-size: 11.5px; color: var(--text-3); }
+
+    /* Fullscreen QR */
+    .full { position: fixed; inset: 0; z-index: 20; background: #fff; display: grid; place-items: center; opacity: 0; visibility: hidden; transition: opacity .25s var(--ease), visibility .25s; }
+    .full.open { opacity: 1; visibility: visible; }
+    .full canvas { width: min(94vw, 80dvh); aspect-ratio: 1; image-rendering: pixelated; }
+    .full .close { position: absolute; top: max(14px, env(safe-area-inset-top)); right: 14px; height: 42px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line-2); background: #fff; font: 600 14px var(--sans); color: var(--navy); }
+    .full .meta { position: absolute; bottom: max(18px, env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; font-size: 13px; color: var(--text-2); }
+
+    .toast { position: fixed; left: 20px; right: 20px; bottom: max(20px, env(safe-area-inset-bottom)); z-index: 30; max-width: 480px; margin: 0 auto; padding: 12px 16px; border-radius: 10px; background: var(--navy); color: #fff; font-size: 14px; box-shadow: 0 8px 24px rgba(15, 42, 68, .25); transform: translateY(150%); visibility: hidden; transition: transform .3s var(--ease), visibility .3s; }
+    .toast.show { transform: none; visibility: visible; }
+
+    @media (max-height: 720px) {
+      main { padding-top: 14px; }
+      .view { gap: 10px; }
+      .card { padding: 14px 16px; }
+      .qr-card { padding: 12px; }
+      .qr-wrap { width: min(100%, 37dvh, 360px); }
+      .status-head { margin-bottom: 8px; }
+      .kv div { padding-top: 8px; }
+      .kv dd { font-size: 16px; }
+      .gauge { margin: 10px 0 0; }
+      .gauge-labels { display: none; }
+      .coords { margin-top: 8px; padding-top: 8px; }
+      .qr-caption { margin-top: 8px; }
+      .steps li { padding-bottom: 12px; font-size: 14.5px; }
+      h1 { font-size: 20px; }
+      .muted { font-size: 14px; }
+      .notice { padding: 11px 13px; font-size: 13px; }
+      .btn { min-height: 48px; }
+      footer { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <div class="bar-in">
+      <svg class="logo" viewBox="0 0 36 36" aria-hidden="true">
+        <rect width="36" height="36" rx="9" fill="#0f2a44"/>
+        <path d="M18 27.5s-6.5-5.6-6.5-10.6a6.5 6.5 0 0 1 13 0c0 5-6.5 10.6-6.5 10.6z" fill="none" stroke="#fff" stroke-width="2"/>
+        <circle cx="18" cy="16.8" r="2.3" fill="#5ea83a"/>
+      </svg>
+      <div class="titles"><b>Kocaeli Altyapı MR</b><span>Konum Aktarımı</span></div>
+      <span class="net" id="net">Çevrimiçi</span>
+    </div>
+  </div>
+
+  <main>
+    <!-- 1. Intro -->
+    <section class="view active" id="v-intro" aria-labelledby="t-intro">
+      <div class="card">
+        <h1 id="t-intro">Konumu gözlüğe aktar</h1>
+        <p class="muted">Telefonun GPS konumu bir QR koda dönüştürülür ve Quest gözlük kamerasıyla okunur. İnternet bağlantısı veya cihaz eşleştirmesi gerekmez.</p>
+      </div>
+      <div class="card">
+        <h2>Kullanım</h2>
+        <ol class="steps">
+          <li><span><b>Konumu başlat</b> düğmesine dokunun ve konum iznini verin.</span></li>
+          <li><span>Gözlükte <b>Konumum</b> seçeneğini açın.</span></li>
+          <li><span>Telefon ekranını gözlüğe <b>30–50 cm</b> mesafeden gösterin.</span></li>
+        </ol>
+      </div>
+      <div class="notice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        <span>Konum bilgisi hiçbir sunucuya gönderilmez; yalnızca bu ekranda QR kod olarak gösterilir.</span>
+      </div>
+      <div class="spacer"></div>
+      <div class="actions">
+        <button class="btn btn-primary" id="start">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>
+          Konumu başlat
+        </button>
+        <button class="btn btn-secondary install" id="install">Ana ekrana ekle</button>
+        <p class="fine" id="iosHint" hidden>iPhone'da ana ekrana eklemek için: Paylaş → Ana Ekrana Ekle</p>
+      </div>
+    </section>
+
+    <!-- 2. Live -->
+    <section class="view" id="v-live" aria-labelledby="t-live">
+      <div class="card searching" id="statusCard" role="status" aria-live="polite">
+        <div class="status-head"><h2 id="t-live">Konum durumu</h2><span class="badge" id="badge">Aranıyor</span></div>
+        <dl class="kv" style="margin:0">
+          <div><dt>Doğruluk</dt><dd id="accV">—</dd></div>
+          <div><dt>Güncelleme</dt><dd id="ageV">—</dd></div>
+          <div><dt>Kaynak</dt><dd id="srcV">GPS</dd></div>
+        </dl>
+        <div class="gauge" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="gauge-labels"><span>İyi ≤15 m</span><span>Orta ≤40 m</span><span>Zayıf</span></div>
+        <div class="coords"><span>Enlem, boylam</span><code id="coordV">—</code></div>
+      </div>
+
+      <div class="card qr-card searching" id="qrCard">
+        <div class="qr-wrap" id="qrBox" role="button" tabindex="0" aria-label="QR kodu tam ekranda göster">
+          <div class="skeleton" aria-hidden="true"></div>
+          <canvas id="qr" width="8" height="8" aria-label="Konum QR kodu"></canvas>
+        </div>
+        <p class="qr-caption">
+          <span class="spinner" aria-hidden="true"></span>
+          <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          <span id="caption">Konum aranıyor…</span>
+        </p>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="actions row">
+        <button class="btn btn-secondary" id="fullBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+          Tam ekran
+        </button>
+        <button class="btn btn-secondary" id="stopBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/></svg>
+          Durdur
+        </button>
+      </div>
+    </section>
+
+    <!-- 3. Error -->
+    <section class="view" id="v-error" aria-labelledby="t-error">
+      <div class="card">
+        <div class="err-head">
+          <div class="err-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 7v6"/><circle cx="12" cy="17" r=".6" fill="currentColor"/><circle cx="12" cy="12" r="10"/></svg></div>
+          <div>
+            <h1 id="t-error">Konum alınamadı</h1>
+            <p class="muted" id="errText"></p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <p class="os" id="errOs">Yapılacaklar</p>
+        <ol class="err-steps" id="errSteps"></ol>
+      </div>
+      <div class="spacer"></div>
+      <div class="actions">
+        <button class="btn btn-primary" id="retry">Tekrar dene</button>
+      </div>
+    </section>
+
+    <footer>Twinup · Kocaeli Altyapı Dijital İkiz</footer>
+  </main>
+
+  <div class="full" id="full" aria-hidden="true">
+    <canvas id="qrFull" width="8" height="8"></canvas>
+    <button class="close" id="closeFull">Kapat</button>
+    <div class="meta" id="fullMeta"></div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="qrcode.js"></script>
+  <script>
+  'use strict';
+  (function () {
+    // QR text read by the headset (Assets/_Project/Scripts/Runtime/Geo/PhoneLocationCode.cs):
+    //   KMR1;<lat>;<lon>;<accuracy m>;<unix seconds>
+    const $ = id => document.getElementById(id);
+    const root = document.documentElement;
+    const views = { intro: $('v-intro'), live: $('v-live'), error: $('v-error') };
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+    let last = null, watchId = null, wakeLock = null, lastText = '', testTimer = null;
+
+    function show(name) {
+      for (const [k, el] of Object.entries(views)) el.classList.toggle('active', k === name);
+      window.scrollTo(0, 0);
+    }
+    function toast(text, ms = 2600) {
+      const t = $('toast');
+      t.textContent = text;
+      t.classList.add('show');
+      clearTimeout(toast.timer);
+      toast.timer = setTimeout(() => t.classList.remove('show'), ms);
+    }
+
+    // skeleton placeholder for the QR while searching
+    (function () {
+      const s = document.querySelector('.skeleton');
+      const on = '111101111100010001101010101100010001111101111000101000110111011101010001111101011';
+      for (let i = 0; i < 81; i++) {
+        const c = document.createElement('i');
+        if (on[i] !== '1') c.style.visibility = 'hidden';
+        c.style.animationDelay = ((i % 9) * 0.05) + 's';
+        s.appendChild(c);
+      }
+    })();
+
+    // ---------- QR ----------
+    function encode(p) {
+      return ['KMR1', p.lat.toFixed(6), p.lon.toFixed(6), Math.round(p.acc), Math.floor(p.time / 1000)].join(';');
+    }
+    function paint(canvas, text, px) {
+      const qr = qrcode(0, 'M');
+      qr.addData(text);
+      qr.make();
+      const n = qr.getModuleCount(), quiet = 4, cells = n + quiet * 2;
+      const scale = Math.max(4, Math.floor(px / cells));
+      canvas.width = canvas.height = cells * scale;
+      const g = canvas.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, canvas.width, canvas.height);
+      g.fillStyle = '#000';
+      for (let r = 0; r < n; r++)
+        for (let c = 0; c < n; c++)
+          if (qr.isDark(r, c)) g.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+    }
+    function setLocked(locked) {
+      for (const id of ['qrCard', 'statusCard']) {
+        $(id).classList.toggle('locked', locked);
+        $(id).classList.toggle('searching', !locked);
+      }
+    }
+    function render() {
+      const text = encode(last);
+      if (text === lastText) return;
+      const first = !lastText;
+      lastText = text;
+      paint($('qr'), text, 1024);
+      if ($('full').classList.contains('open')) paint($('qrFull'), text, 1400);
+      if (first) {
+        setLocked(true);
+        if (navigator.vibrate) navigator.vibrate(20);
+      }
+    }
+
+    // ---------- status ----------
+    const GRADE = {
+      good: { color: 'var(--ok)', bg: 'var(--ok-bg)', label: 'Hazır', caption: 'QR kod hazır. Gözlükle okutabilirsiniz.' },
+      mid: { color: 'var(--mid)', bg: 'var(--mid-bg)', label: 'Orta doğruluk', caption: 'QR kod hazır. Açık alanda doğruluk artar.' },
+      bad: { color: 'var(--bad)', bg: 'var(--bad-bg)', label: 'Zayıf sinyal', caption: 'Doğruluk düşük. Açık alana çıkın.' },
+    };
+    function grade(acc) { return acc <= 15 ? 'good' : acc <= 40 ? 'mid' : 'bad'; }
+    function ago(sec) { return sec < 5 ? 'Şimdi' : sec < 60 ? sec + ' sn önce' : Math.floor(sec / 60) + ' dk önce'; }
+    function updateStatus() {
+      if (!last) return;
+      const key = grade(last.acc), g = GRADE[key];
+      const age = Math.max(0, Math.round((Date.now() - last.time) / 1000));
+      let color = g.color, bg = g.bg, label = g.label, caption = g.caption;
+      if (age > 60 && !testTimer) { color = 'var(--mid)'; bg = 'var(--mid-bg)'; label = 'Güncellenmiyor'; caption = 'Son konum ' + ago(age) + '. GPS açık mı?'; }
+      if (testTimer) { label = 'Test'; caption = 'Test konumu: gerçek GPS değildir.'; }
+      root.style.setProperty('--state', color);
+      root.style.setProperty('--state-bg', bg);
+      $('badge').textContent = label;
+      $('accV').textContent = '±' + Math.round(last.acc) + ' m';
+      $('ageV').textContent = ago(age);
+      $('caption').textContent = caption;
+      $('statusCard').dataset.grade = key;
+      $('coordV').textContent = last.lat.toFixed(6) + ', ' + last.lon.toFixed(6);
+      $('fullMeta').textContent = '±' + Math.round(last.acc) + ' m · ' + ago(age).toLowerCase();
+    }
+
+    // ---------- geolocation ----------
+    function onPosition(pos) {
+      last = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy, time: Date.now() };
+      render();
+      updateStatus();
+    }
+    function onError(err) {
+      if (err.code === 3 && last) return; // timeout after a fix: keep showing the last one
+      if (err.code === 3) { $('caption').textContent = 'Konum hâlâ aranıyor. Açık alanda daha hızlı bulunur.'; return; }
+      stopWatch();
+      showError(err.code === 1 ? 'denied' : 'other', err.message);
+    }
+    function stopWatch() {
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
+    function resetLive() {
+      last = null; lastText = '';
+      setLocked(false);
+      root.style.setProperty('--state', 'var(--text-3)');
+      root.style.setProperty('--state-bg', '#eef1f4');
+      $('badge').textContent = 'Aranıyor';
+      $('accV').textContent = '—';
+      $('ageV').textContent = '—';
+      $('srcV').textContent = testTimer ? 'Test' : 'GPS';
+      $('caption').textContent = 'Konum aranıyor…';
+      $('coordV').textContent = '—';
+      delete $('statusCard').dataset.grade;
+    }
+    function start() {
+      if (!window.isSecureContext) return showError('insecure');
+      if (!('geolocation' in navigator)) return showError('unsupported');
+      stopWatch();
+      resetLive();
+      show('live');
+      watchId = navigator.geolocation.watchPosition(onPosition, onError, { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
+      keepAwake();
+    }
+    function stop() {
+      stopWatch();
+      clearInterval(testTimer); testTimer = null;
+      document.body.classList.remove('test');
+      resetLive();
+      releaseAwake();
+      show('intro');
+    }
+
+    function showError(kind, detail) {
+      let text, os = 'Yapılacaklar', steps;
+      if (kind === 'denied') {
+        text = 'Bu sayfaya konum izni verilmedi.';
+        if (isIOS) {
+          os = 'iPhone';
+          steps = ['Ayarlar → Gizlilik ve Güvenlik → <b>Konum Servisleri</b> açık olmalıdır.', '<b>Safari Web Siteleri</b> için "Uygulamayı Kullanırken" seçilmelidir.', 'Safari\'de <b>aA</b> → Web Sitesi Ayarları → Konum: <b>İzin Ver</b>.'];
+        } else {
+          os = 'Android';
+          steps = ['Adres çubuğundaki ayar simgesine dokunun.', '<b>İzinler → Konum</b> bölümünden izin verin.', 'Telefonun konum (GPS) ayarının açık olduğundan emin olun.'];
+        }
+      } else if (kind === 'insecure') {
+        text = 'Tarayıcılar konum bilgisini yalnızca güvenli (https://) adreslere verir.';
+        steps = ['Sayfayı <b>https://</b> ile başlayan yayın adresinden açın.', 'GPS gerektirmeyen deneme için adresin sonuna <b>?test=izmit</b> ekleyin.'];
+      } else if (kind === 'unsupported') {
+        text = 'Bu tarayıcı konum özelliğini desteklemiyor.';
+        steps = ['Android\'de <b>Chrome</b>, iPhone\'da <b>Safari</b> ile açın.'];
+      } else {
+        text = 'Konum okunamadı' + (detail ? ': ' + detail : '.');
+        steps = ['Telefonun konum (GPS) ayarını kontrol edin.', 'Açık alanda birkaç saniye bekleyin.', 'Tekrar deneyin.'];
+      }
+      $('errText').textContent = text;
+      $('errOs').textContent = os;
+      $('errSteps').innerHTML = steps.map(s => '<li>' + s + '</li>').join('');
+      releaseAwake();
+      show('error');
+    }
+
+    // ---------- screen awake ----------
+    async function keepAwake() {
+      try {
+        if ('wakeLock' in navigator && !wakeLock) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLock.addEventListener('release', () => { wakeLock = null; });
+        }
+      } catch (e) { /* not critical */ }
+    }
+    function releaseAwake() { try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null; }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && (watchId !== null || testTimer)) keepAwake();
+    });
+
+    // ---------- fullscreen QR ----------
+    function openFull() {
+      if (!lastText) { toast('QR kod, konum bulunduktan sonra gösterilir.'); return; }
+      paint($('qrFull'), lastText, 1400);
+      $('full').classList.add('open');
+      $('full').setAttribute('aria-hidden', 'false');
+      const el = document.documentElement;
+      if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    }
+    function closeFull() {
+      $('full').classList.remove('open');
+      $('full').setAttribute('aria-hidden', 'true');
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    }
+    $('qrBox').addEventListener('click', openFull);
+    $('qrBox').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFull(); } });
+    $('fullBtn').addEventListener('click', openFull);
+    $('closeFull').addEventListener('click', closeFull);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFull(); });
+
+    $('start').addEventListener('click', start);
+    $('retry').addEventListener('click', start);
+    $('stopBtn').addEventListener('click', stop);
+
+    // ---------- connectivity ----------
+    function net() {
+      const off = !navigator.onLine;
+      $('net').classList.toggle('off', off);
+      $('net').textContent = off ? 'Çevrimdışı' : 'Çevrimiçi';
+    }
+    addEventListener('online', net); addEventListener('offline', net); net();
+
+    // ---------- install ----------
+    let deferredPrompt = null;
+    addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      $('install').classList.add('show');
+    });
+    $('install').addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice.catch(() => {});
+      deferredPrompt = null;
+      $('install').classList.remove('show');
+    });
+    addEventListener('appinstalled', () => toast('Ana ekrana eklendi. Artık internetsiz de açılır.'));
+    if (isIOS && !standalone) $('iosHint').hidden = false;
+
+    // ---------- test positions ----------
+    // ?test=izmit stands "in" the pilot area, ?test=konya in the office. No GPS or HTTPS needed.
+    const TESTS = {
+      izmit: { lat: 40.776309, lon: 29.963551, acc: 5 },
+      konya: { lat: 37.8746, lon: 32.4932, acc: 8 },
+    };
+    const test = TESTS[new URLSearchParams(location.search).get('test')];
+    if (test) {
+      document.body.classList.add('test');
+      const tick = () => onPosition({ coords: { latitude: test.lat, longitude: test.lon, accuracy: test.acc } });
+      testTimer = setInterval(tick, 5000);
+      resetLive();
+      show('live');
+      tick();
+      keepAwake();
+    }
+
+    setInterval(updateStatus, 1000);
+    if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});
+  })();
+  </script>
+</body>
+</html>
